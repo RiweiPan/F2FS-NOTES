@@ -1,5 +1,8 @@
 # F2FS笔记、备忘录
 
+### 实验环境的搭建
+[实验环境的搭建](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Experiment/实验环境搭建.md)
+
 ### 一、F2FS文件系统结构
 1. [总体结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS%20Layout/%E6%80%BB%E4%BD%93%E7%BB%93%E6%9E%84.md)
 2. [Superblock结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS%20Layout/Superblock%E7%BB%93%E6%9E%84.md)
