@@ -1,7 +1,7 @@
 ## f2fs_summary 和 f2fs_summary_block
 
 ### 介绍
-因为每一个segment需要管理512Block的地址，而且很多场合需要通过block地址找到这个block是属于哪一个node，以及属于这个node的第几个block。 `f2fs_summary` 主要保存了block->node的映射信息：
+因为每一个segment需要管理512个Block的地址，而且很多场合需要通过block地址找到这个block是属于哪一个node，以及属于这个node的第几个block。 `f2fs_summary` 主要保存了block->node的映射信息：
 
 ```c
 struct f2fs_summary {
