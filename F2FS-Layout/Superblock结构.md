@@ -9,9 +9,9 @@ struct f2fs_super_block {
 	__le16 major_ver;		/* Major Version */
 	__le16 minor_ver;		/* Minor Version */
 	__le32 log_sectorsize;		/* log2 sector size in bytes */
-	__le32 log_sectors_per_block;	/* log2 # of sectors per block */
-	__le32 log_blocksize;		/* log2 block size in bytes */
-	__le32 log_blocks_per_seg;	/* log2 # of blocks per segment */
+	__le32 log_sectors_per_block;	/* log2 # of sectors per block 一般是3，因为 1 << 3 = 8 */
+	__le32 log_blocksize;		/* log2 block size in bytes 一般是12，因为 1 << 12 = 4096 */
+	__le32 log_blocks_per_seg;	/* log2 # of blocks per segment 一般是8，因为 1 << 8 = 512 */
 	__le32 segs_per_sec;		/* # of segments per section */
 	__le32 secs_per_zone;		/* # of sections per zone */
 	__le32 checksum_offset;		/* checksum offset inside super block */
@@ -75,6 +75,13 @@ struct f2fs_sb_info {
 	struct f2fs_sm_info *sm_info;		/* segment manager */
 
 	/* for bio operations */
+	/*
+	 * sbi->write_io指针数组保存的是不同类型(NODE\DATA\META)的bio数据，每个指针指向一个大小为3的f2fs_bio_info数组，代表不同的冷热程度
+	 * sbi->write_io[0][0~2] = DATA-HOT DATA-WARM DATA-COLD
+	 * sbi->write_io[1][0~2] = NODE-HOT NODE-WARM NODE-COLD
+	 * sbi->write_io[2][0~2] = META-HOT META-WARM META-COLD
+	 * 它的作用是：当磁盘写入多个页的时候，可以通过这个bio暂存要写入到磁盘的页，等到满足一定的条件，就批量刷写入磁盘，提高IO效率
+	 * */
 	struct f2fs_bio_info *write_io[NR_PAGE_TYPE];	/* for write bios */
 	struct mutex wio_mutex[NR_PAGE_TYPE - 1][NR_TEMP_TYPE];
 						/* bio ordering for NODE/DATA */
