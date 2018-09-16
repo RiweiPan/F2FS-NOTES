@@ -32,6 +32,7 @@
 3. [如何对页进行迁移](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-GC/%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E9%A1%B5%E8%BF%81%E7%A7%BB.md)
 
 ### 六、F2FS的Checkpoint流程
+[Checkpoint的作用与实现]()
 
 ### 七、F2FS的Recovery的流程
 
