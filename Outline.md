@@ -37,6 +37,6 @@
 ### 七、F2FS的Recovery的流程
 
 ### 八、重要的数据结构
-
 1. [f2fs_summary和f2fs_summary_block的介绍和应用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_summary.md)
 2. [seg_entry和sit_info的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/segment.md) 
+3. [f2fs_journal的作用]()

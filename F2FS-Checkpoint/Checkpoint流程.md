@@ -492,7 +492,7 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	}
 
 	// start_blk经过多次的累加后，进入到summary区域
-	f2fs_write_data_summaries(sbi, start_blk); // 将data summary写入磁盘
+	f2fs_write_data_summaries(sbi, start_blk); // 将data summary以及里面的journal写入磁盘
 	start_blk += data_sum_blocks;
 
 	/* Record write statistics in the hot node summary */
@@ -503,7 +503,7 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	seg_i->journal->info.kbytes_written = cpu_to_le64(kbytes_written);
 
 	if (__remain_node_summaries(cpc->reason)) {
-		f2fs_write_node_summaries(sbi, start_blk); // 将node summary写入磁盘
+		f2fs_write_node_summaries(sbi, start_blk); // 将node summary以及里面的journal写入磁盘
 		start_blk += NR_CURSEG_NODE_TYPE;
 	}
 
