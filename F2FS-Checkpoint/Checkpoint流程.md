@@ -1,11 +1,11 @@
 ## Checkpoint流程
-### Checkpoint的作用
-从F2FS的磁盘布局可以了解到，F2FS有一个元数据区域，用于集中管理磁盘所有的block的信息。因此为了使F2FS系统能够正确的运行，需要时刻保证的元数据区域的数据的正确性，以及在断电，宕机等意外情况时，元数据区域依然能够正确地将数据重新读取出来。因此保证元数据区域的有效性以及恢复性，就是Checkpoint的作用。
-### Checkpoint的一般流程
-1. 冻结F2FS IO操作
-2. 刷写所有脏数据到磁盘
-3. 将元数据NAT SIT SSA写到指定位置。
-4. 更新Checkpoint本身的数据
+### Checkpoint的介绍
+从F2FS的磁盘布局可以了解到，F2FS有一个元数据区域，用于集中管理磁盘所有的block的信息，因此F2FS使用了检查点(checkpointing)机制去维护文件系统的恢复点(recovery point)，这个恢复点用于在系统突然崩溃的时候，元数据区域依然能够正确地将数据重新读取出来。因此保证元数据区域的有效性以及恢复性。当F2FS需要通过 `fsync` 或 `umount` 等命令对系统进行同步的时候，F2FS会触发一次Checkpoint机制，它会完成以下的工作:
+1. 页缓存的脏node和dentry block会刷写回到磁盘;
+2. 挂起系统其他的写行为，如create，unlink，mkdir；
+3. 将系统的meta data，如NAT、SIT、SSA的数据写回磁盘;
+4. 更新checkpoint的状态，包括checkpoint的版本，NAT和SIT的bitmaps以及journals，SSA，Orphan inode
+
 
 ### Checkpoint的时机
 从上面的描述可以可以知道，CP是一个开销很大的操作，因此合理选取CP时机，能够很好地提高性能。CP的触发时机有:

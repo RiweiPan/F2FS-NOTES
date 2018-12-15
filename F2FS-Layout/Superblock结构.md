@@ -50,6 +50,42 @@ struct f2fs_super_block {
 
 ```
 
+
+对于一个50MB大小的磁盘，格式化后的 `f2fs_super_block` 的信息如下:
+```
+magic = -218816496
+major_ver = 1
+minor_ver = 10
+log_sectorsize = 9
+log_sectors_per_block = 3
+log_blocksize = 12
+log_blocks_per_seg = 9
+segs_per_sec = 1
+secs_per_zone = 1
+checksum_offset = 0
+block_count = 12800 # 50MB / 4KB = 12800
+section_count = 17     # section只在main area应用，因此和main area一样
+segment_count = 24
+segment_count_ckpt = 2 # checkpoint用了2个segment
+segment_count_sit = 2  # SIT也用了2个segment
+segment_count_nat = 2  # NAT也用了2个segment
+segment_count_ssa = 1  # SSA用了1个segment
+segment_count_main = 17 # main area一共有17个可用的segment
+segment0_blkaddr = 512
+cp_blkaddr = 512       # checkpoint的地址
+sit_blkaddr = 1536     # sit的地址
+nat_blkaddr = 2560	   # nat的地址
+ssa_blkaddr = 3584     # ssa的地址
+main_blkaddr = 4096    # main area的地址
+root_ino = 3
+node_ino = 1
+meta_ino = 2
+extension_count = 27
+cp_payload = 0
+feature = 0
+encryption_level = 
+```
+
 `f2fs_super_block` 结构保存的是最基础的元信息，包括磁盘大小，元区域的各个部分的起始地址等。这个数据结构保存在磁盘的前端的位置，F2FS进行启动的时候从磁盘的前端直接读取出来。而磁盘本身的数据，则是通过 `mkfs.f2fs` 进行初始化。这个数据结构只在初始化的时候使用，大部分情况下系统使用的都是superblock的另外一个结构:
 
 ```c
