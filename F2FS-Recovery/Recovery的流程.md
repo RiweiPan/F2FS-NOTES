@@ -1,0 +1,11 @@
+## Recovery流程
+### Recovery的介绍
+F2FS的recovery有两种方式，分别是后滚恢复(Roll-Back Recovery)，前滚恢复(Roll-Forward Recovery)。
+
+### Roll-Back Recovery
+当遇到突然失去电源等情况，F2FS会回滚到最近的Checkpoint点中。为了保持一个稳定可用的Checkpoint（防止Chcekpoint在创建或者更新的时候宕机），F2FS维护了两个Checkpoint。如果一个Checkpoint在header和footer包含相同的数据，那么F2FS就会认为是可用的，可以使用这个Checkpoint，否者就会被丢弃掉。
+与之相似，每一个Checkpoint都包含一份NAT bitmap和SIT bitmap，用于管理NAT Blocks和SIT Blocks。F2FS会选择其中一组Checkpoint数据进行更新，然后标记为最新。
+如果有少量的NAT和SIT entries被频繁更新，可能会导致频繁大量的IO读写。因此F2FS在Checkpoint使用了SIT journals和NAT journals去缓存一些频繁更改。通过这种方式可以减少CP和读写的Overheads。
+在F2FS进行挂载的时候，F2FS需要根据Headers和footers找到合适的可用的Checkpoint，如果两个Checkpoint都是可用的，那么F2FS会挑选verson最新的Checkpoint进行恢复。在F2FS得到可用的Checkpoint之后，就会检查是否存在Orphan Inodes，如果找到了orphan inode，就会truncate它们的所有数据。然后，F2FS会根据SIT Blocks和NAT Blocks的bitmap恢复meata data和建立映射表。
+
+### Roll-Forward Recovery
