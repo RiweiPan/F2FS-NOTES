@@ -35,4 +35,5 @@
 1. [f2fs_summary和f2fs_summary_block的介绍和应用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_summary.md)
 2. [seg_entry和sit_info的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/segment.md) 
 3. [f2fs_journal的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_journal.md)
-4. [对f2fs_fill_super的分析](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Superblock%E7%BB%93%E6%9E%84.md)
+4. [f2fs_fill_super的分析](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_fill_super.md)
+5. [f2fs_map_block的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_map_blocks.md)
