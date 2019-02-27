@@ -1,6 +1,6 @@
 ### Superblock结构
 
-superblock是F2FS保存元数据最重要的数据结构，几乎每一个操作都要用到superblock的变量信息，首先先分析第一个superblock的相关数据结构
+`f2fs_super_block` 结构保存的是最基础的元信息，包括磁盘大小，元区域的各个部分的起始地址等。这个数据结构保存在磁盘的前端的位置，F2FS进行启动的时候从磁盘的前端直接读取出来。而磁盘本身的数据，则是通过 `mkfs.f2fs` 进行初始化，它的结构如下所示:
 
 ```c
 
@@ -86,7 +86,7 @@ feature = 0
 encryption_level = 
 ```
 
-`f2fs_super_block` 结构保存的是最基础的元信息，包括磁盘大小，元区域的各个部分的起始地址等。这个数据结构保存在磁盘的前端的位置，F2FS进行启动的时候从磁盘的前端直接读取出来。而磁盘本身的数据，则是通过 `mkfs.f2fs` 进行初始化。这个数据结构只在初始化的时候使用，大部分情况下系统使用的都是superblock的另外一个结构:
+`f2fs_super_block` 只在文件系统初始化的时候使用，大部分情况下系统使用的都是superblock的另外一个结构 `f2fs_sb_info`，这个结构在文件系统初始化时生成的，只存在与内存当中，但是时F2FS文件系统使用最多的数据结构，因为它包含了SIT、NAT、SSA、Checkpoint等多个重要的管理器:
 
 ```c
 
@@ -269,16 +269,3 @@ struct f2fs_sb_info {
 };
 
 ```
-
-`f2fs_sb_info` 这个数据结构在F2FS被应用到很多地方，而且有多种方式可以访问到这个结构，可见其重要性。
-
-```c
-
-static inline struct f2fs_sb_info *F2FS_SB(struct super_block *sb);
-static inline struct f2fs_sb_info *F2FS_I_SB(struct inode *inode);
-static inline struct f2fs_sb_info *F2FS_M_SB(struct address_space *mapping);
-static inline struct f2fs_sb_info *F2FS_P_SB(struct page *page);
-
-```
-
-在F2FS几乎所有的行为都跟 `f2fs_sb_info` 有关，因此具体作用在使用到再提及。
