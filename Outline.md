@@ -11,15 +11,16 @@
 5. [Node Address Table结构(NAT)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Node%20Address%20Table%E7%BB%93%E6%9E%84.md)
 6. [Segment Summary Area结构(SSA)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Segment%20Summary%20Area%E7%BB%93%E6%9E%84.md)
 
-### 二、文件与目录的创建以及删除
+### 二、文件数据的存储以及读写
+1. [文件数据的保存方式](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/file_data_structure.md)
+2. [读流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E8%AF%BB%E6%B5%81%E7%A8%8B.md)
+3. [写流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E5%86%99%E6%B5%81%E7%A8%8B.md)
+
+### 三、文件与目录的创建以及删除
 1. [一般文件的创建](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E6%96%87%E4%BB%B6%E5%88%9B%E5%BB%BA.md)
 2. [一般目录的创建](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%9B%E5%BB%BA.md)
 3. [一般文件的删除](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%9B%E5%BB%BA.md)
 4. [一般目录的删除](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%A0%E9%99%A4.md)
-
-### 三、文件的读写
-1. [读流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E8%AF%BB%E6%B5%81%E7%A8%8B.md)
-2. [写流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E5%86%99%E6%B5%81%E7%A8%8B.md)
 
 ### 四、垃圾回收流程
 1. [垃圾回收流程分析](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-GC/GC%E6%B5%81%E7%A8%8B%E4%BB%8B%E7%BB%8D.md)
