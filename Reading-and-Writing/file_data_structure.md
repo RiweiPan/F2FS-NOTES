@@ -20,10 +20,10 @@ struct f2fs_node {
 `f2fs_node` 结构大小是4KB，单独占用磁盘4KB的空间，因此f2fs_node也会就有自己的物理地址。
 
 其中`f2fs_inode`、`direct_node`、`indirect_inode`、`node_footer` 在 `f2fs_node` 中起到不同的作用:
->**f2fs_inode:** 用于提供给文件进行索引，保存了部分文件的元数据，以及923个页数据的物理地址，同时也保存了5个用于间接寻址的direct_node或indirect_node的node id(nid)，其中2个是direct_node的nid，2个是indirect_node的nid，以及1个double indirect node的nid;
->**direct_node:** 用于直接寻址，保存了1018个页数据的物理地址;
->**indirect_inode:** 用于间接寻址，保存了1018个direct_node的nid或者1018个indirect_inode的nid;
->**node_footer:** 用于区分该f2fs_node的类型
+1. **f2fs_inode:** 用于提供给文件进行索引，保存了部分文件的元数据，以及923个页数据的物理地址，同时也保存了5个用于间接寻址的direct_node或indirect_node的node id(nid)，其中2个是direct_node的nid，2个是indirect_node的nid，以及1个double indirect node的nid;
+2. **direct_node:** 用于直接寻址，保存了1018个页数据的物理地址;
+3. **indirect_inode:** 用于间接寻址，保存了1018个direct_node的nid或者1018个indirect_inode的nid;
+4. **node_footer:** 用于区分该f2fs_node的类型
 
 因此我们可以计算F2FS最大允许单个文件大小，我们根据以下步骤计算：
 1. `f2fs_inode` 直接保存了923个页的数据的物理地址;
@@ -33,7 +33,7 @@ struct f2fs_node {
 因此F2FS单个文件最多了保存3.93TB数据。
 
 ### f2fs_inode/direct_inode/indirect_inode的结构以及作用
-上面提及到文件数据是通过 `f2fs_inode` 索引数据，它数据结构如下:
+上面提及到文件数据是通过 `f2fs_inode` 索引数据，它通过联合体包含了三种不同功能的node，如下:
 
 ```c
 struct f2fs_inode {
