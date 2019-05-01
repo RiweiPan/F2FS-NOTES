@@ -1,5 +1,5 @@
-## 后滚恢复和Checkpoint的作用与实现
-后滚恢复即恢复到上一个Checkpoint点的元数据状态，因此后滚恢复就是一个写Checkpoint的流程。
+## Checkpoint的作用与实现
+后滚恢复即恢复到上一个Checkpoint点的元数据状态，因此F2FS需要在特定的时刻将Checkpoint的数据写入到磁盘中。
 
 ### Checkpoint的时机
 CP是一个开销很大的操作，因此合理选取CP时机，能够很好地提高性能。CP的触发时机有:
@@ -513,6 +513,11 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 	f2fs_write_data_summaries(sbi, start_blk); // 将data summary以及里面的journal写入磁盘
 
+	/* 
+	 * node summaries的写回只有在启动和关闭F2FS的时候才会执行，
+	 * 如果出现的宕机的情况下，就会失去了UMOUNT的标志，也会失去了所有的NODE SUMMARY
+	 * F2FS会进行根据上次checkpoint的情况进行恢复
+	 */
 	if (__remain_node_summaries(cpc->reason)) {
 		f2fs_write_node_summaries(sbi, start_blk); // 将node summary以及里面的journal写入磁盘
 		start_blk += NR_CURSEG_NODE_TYPE;
