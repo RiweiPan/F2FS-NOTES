@@ -93,9 +93,9 @@ fail_no_cp:
 }
 ```
 
-### 恢复curseg
+#### 恢复curseg
 这一个步骤主要在`f2fs_build_segment_manager`函数的`build_curseg`函数中完成:
-1. 分配空间给curseg_info数组，默认是6个，表示(HOT,WARM,COLD) X (DATA,NODE)的6中分配方式。
+1. 分配空间给curseg_info数组，默认是6个，表示(HOT,WARM,COLD) X (DATA,NODE)的6种分配方式。
 2. 执行`restore_curseg_summaries`函数，从`f2fs_checkpoint`中读取数据，以及根据compacted summary block和normal summary block恢复数据。
 
 ```c
@@ -271,11 +271,6 @@ void f2fs_restore_node_summary(struct f2fs_sb_info *sbi,
 	}
 }
 ```
-
-
-
-
-
 
 ### 前滚恢复
 前滚恢复的主要作用是恢复那些执行了fsync等同步操作写入了磁盘，但是在CP回写之前就宕机的数据(F2FS为了提高效率，不会在fsync之后马上就回写CP，而是加上了某些标志然后回写fsync关联的数据，用于前滚恢复，从而避免大开销的写CP操作)。
