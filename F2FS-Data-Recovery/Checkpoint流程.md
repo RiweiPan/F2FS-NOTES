@@ -24,7 +24,7 @@ CP是一个开销很大的操作，因此合理选取CP时机，能够很好地�
 
 大部分情况下，都是触发 `CP_SYNC` 这个宏的CP。
 
-### Checkpoint的具体流程
+### Checkpoint的核心流程
 Checkpoint的入口函数以及核心数据结构
 ```c
 struct cp_control {
@@ -49,21 +49,114 @@ f2fs_write_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	...
 	ckpt_ver = cur_cp_version(ckpt); // 获取当前CP的version
 	ckpt->checkpoint_ver = cpu_to_le64(++ckpt_ver); // 给当前CP version加1
+
+	// 更新元数据的NAT区域
 	f2fs_flush_nat_entries(sbi, cpc); // 刷写所有nat entries到磁盘
+
+	// 更新元数据的SIT区域
 	f2fs_flush_sit_entries(sbi, cpc); // 刷写所有sit entries到磁盘，处理dirty prefree segments
+
+	// 更新元数据的Checkpoint区域以及Summary区域
 	err = do_checkpoint(sbi, cpc); // checkpoint核心流程
+
+	
 	f2fs_clear_prefree_segments(sbi, cpc); // 清除dirty prefree segments的dirty标记
 	unblock_operations(sbi); //恢复文件系统的操作
 	...
 	f2fs_update_time(sbi, CP_TIME); // 更新CP的时间
 	...
 }
+```
+### Checkpoint涉及的子函数的分析
 
+#### 暂存BIO的回写
+一般情况下，文件系统与设备的交互的开销是比较大的，因此一些文件系统为了减少交互的开销，都会尽可能将更多的page合并在一个bio中，再提交到设备，进而减少交互的次数。F2FS中，在sbi中使用了`struct f2fs_bio_info`结构用于减少交互次数，它的核心是缓存一个bio，将即将回写的page都保存到这个bio中，等到bio尽可能满再回写进入磁盘。它在sbi的声明如下:
+```c
+struct f2fs_sb_info {
+	...
+	struct f2fs_bio_info *write_io[NR_PAGE_TYPE]; // NR_PAGE_TYPE表示HOW/WARM/COLD不同类型的数据
+	...
+}
+```
+在Checkpoint流程中，必须要回写暂存的page，以获得系统最新的稳定状态信息，它调用了函数是 `f2fs_flush_merged_writes`。`f2fs_flush_merged_writes` 函数调用了`f2fs_submit_merged_write`分别回写了DATA、NODE、META的信息。然后会调用`__submit_merged_write_cond`函数，这个函数会遍历HOW/WARM/COLD对应的`sbi->write_io`进行回写，最后调用`__submit_merged_bio`函数，从`sbi->write_io`得到bio，submit到设备中。
+```c
+void f2fs_flush_merged_writes(struct f2fs_sb_info *sbi)
+{
+	f2fs_submit_merged_write(sbi, DATA);
+	f2fs_submit_merged_write(sbi, NODE);
+	f2fs_submit_merged_write(sbi, META);
+}
+
+void f2fs_submit_merged_write(struct f2fs_sb_info *sbi, enum page_type type)
+{
+	__submit_merged_write_cond(sbi, NULL, 0, 0, type, true);
+}
+
+static void __submit_merged_write_cond(struct f2fs_sb_info *sbi,
+				struct inode *inode, nid_t ino, pgoff_t idx,
+				enum page_type type, bool force)
+{
+	enum temp_type temp;
+
+	if (!force && !has_merged_page(sbi, inode, ino, idx, type))
+		return;
+
+	for (temp = HOT; temp < NR_TEMP_TYPE; temp++) { // 遍历不同的HOT/WARM/COLD类型就行回写
+
+		__f2fs_submit_merged_write(sbi, type, temp);
+
+		/* TODO: use HOT temp only for meta pages now. */
+		if (type >= META)
+			break;
+	}
+}
+
+static void __f2fs_submit_merged_write(struct f2fs_sb_info *sbi,
+				enum page_type type, enum temp_type temp)
+{
+	enum page_type btype = PAGE_TYPE_OF_BIO(type);
+	struct f2fs_bio_info *io = sbi->write_io[btype] + temp; // temp可以计算属于HOT/WARM/COLD对应的sbi->write_io
+
+	down_write(&io->io_rwsem);
+
+	/* change META to META_FLUSH in the checkpoint procedure */
+	if (type >= META_FLUSH) {
+		io->fio.type = META_FLUSH;
+		io->fio.op = REQ_OP_WRITE;
+		io->fio.op_flags = REQ_META | REQ_PRIO | REQ_SYNC;
+		if (!test_opt(sbi, NOBARRIER))
+			io->fio.op_flags |= REQ_PREFLUSH | REQ_FUA;
+	}
+	__submit_merged_bio(io);
+	up_write(&io->io_rwsem);
+}
+
+static void __submit_merged_bio(struct f2fs_bio_info *io)
+{
+	struct f2fs_io_info *fio = &io->fio;
+
+	if (!io->bio)
+		return;
+
+	bio_set_op_attrs(io->bio, fio->op, fio->op_flags);
+
+	if (is_read_io(fio->op))
+		trace_f2fs_prepare_read_bio(io->sbi->sb, fio->type, io->bio);
+	else
+		trace_f2fs_prepare_write_bio(io->sbi->sb, fio->type, io->bio);
+
+	__submit_bio(io->sbi, io->bio, fio->type); // 从f2fs_io_info得到bio，提交到设备
+	io->bio = NULL;
+}
 ```
 
-#### NAT和SIT的刷写
-`f2fs_flush_nat_entries` 和 `f2fs_flush_sit_entries` 的作用是将暂存在ram的nat entry合sit entry都回写到Journa或磁盘l当中:
+
+#### NAT区域的脏数据回写
+`f2fs_flush_nat_entries` 和 `f2fs_flush_sit_entries` 的作用是将暂存在ram的nat entry合sit entry都回写到Journal或磁盘当中:
 ##### f2fs_flush_nat_entries函数
+修改node的信息会对对应的`nat_entry`进行修改，同时`nat_entry`会被设置为脏，加入到`nm_i->nat_set_root`的radix tree中。Checkpoint会对脏的`nat_entry`进行回写，完成元数据的更新。
+
+首先声明了一个list变量`LIST_HEAD(sets)`，然后通过一个while循环，将`nat_entry_set`按一个set为单位，对脏的`nat_entry`进行提取，每次提取SETVEC_SIZE个，然后保存到`setvec[SETVEC_SIZE]`中，然后对`setvec`中的每一个`nat_entry_set`，按照一定条件加入到`LIST_HEAD(sets)`的链表中。最后针对`LIST_HEAD(sets)`的`nat_entry_set`，执行`__flush_nat_entry_set`函数，对脏数据进行回写。`__flush_nat_entry_set`有两种回写方法，第一种是写入到curseg的journal中，第二种是直接找到对应的nat block，回写到磁盘中。
 ```c
 void f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 {
@@ -82,8 +175,9 @@ void f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	down_write(&nm_i->nat_tree_lock);
 
 	/*
-	 * __gang_lookup_nat_set 这个函数就是从radix tree读取set_idx开始，连续读取SETVEC_SIZE这么多个nat_entry_set，保存在setvec
-	 * 因此这个while循环的作用就是读取SIT缓存的所有nat_entry_set，然后加入到sets这个链表当中
+	 * __gang_lookup_nat_set 这个函数就是从radix tree读取set_idx开始，
+	 * 连续读取SETVEC_SIZE这么多个nat_entry_set，保存在setvec中
+	 * 然后按照一定条件，通过__adjust_nat_entry_set函数加入到LIST_HEAD(sets)链表中
 	 * */
 	while ((found = __gang_lookup_nat_set(nm_i,
 					set_idx, SETVEC_SIZE, setvec))) {
@@ -104,10 +198,16 @@ void f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 	up_write(&nm_i->nat_tree_lock);
 	/* Allow dirty nats by node block allocation in write_begin */
 }
+```
 
-/*
- * 将nat_entry_set对应的nat_entry信息，写入到curseg->journal中
- */
+`__flush_nat_entry_set`有两种回写的方式，第一种是写入到curseg的journal中，第二种是回写到nat block中。
+
+第一种写入方式通常是由于curseg有足够的journal的情况下的写入，首先遍历`nat_entry_set`中的所有`nat_entry`，然后根据nid找到curseg->journal中对应的nat_entry的位置，跟着将被遍历的`nat_entry`的值赋予给curseg->journal的`nat_entry`，通过`raw_nat_from_node_info`完成curseg的nat_entry的更新。
+
+第二种写入方式在curseg没有足够的journal的时候触发，首先根据nid找到NAT区域的对应的`f2fs_nat_block`，然后通过`get_next_nat_page`读取出来，然后通过`raw_nat_from_node_info`进行更新。
+
+
+```c
 static void __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		struct nat_entry_set *set, struct cp_control *cpc)
 {
@@ -125,7 +225,7 @@ static void __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 	 * #2, flush nat entries to nat page.
 	 */
 	if (enabled_nat_bits(sbi, cpc) ||
-		!__has_cursum_space(journal, set->entry_cnt, NAT_JOURNAL)) /* 当journal空间不够了，旧刷写到磁盘中 */
+		!__has_cursum_space(journal, set->entry_cnt, NAT_JOURNAL)) //当curseg的journal空间不够了，就刷写到磁盘中
 		to_journal = false;
 
 	if (to_journal) {
@@ -162,11 +262,11 @@ static void __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 		raw_nat_from_node_info(raw_ne, &ne->ni); // 将node info的信息更新到journal中后者磁盘中
 		nat_reset_flag(ne); // 清除需要CP的标志
 		__clear_nat_cache_dirty(NM_I(sbi), set, ne); // 从dirty list清除处理后的entry
-		if (nat_get_blkaddr(ne) == NULL_ADDR) {
+		if (nat_get_blkaddr(ne) == NULL_ADDR) { // 如果对应nid已经是被无效化了，则释放
 			add_free_nid(sbi, nid, false, true);
 		} else {
 			spin_lock(&NM_I(sbi)->nid_list_lock);
-			update_free_nid_bitmap(sbi, nid, false, false);
+			update_free_nid_bitmap(sbi, nid, false, false); // 更新可用的nat的bitmap
 			spin_unlock(&NM_I(sbi)->nid_list_lock);
 		}
 	}
@@ -186,9 +286,11 @@ static void __flush_nat_entry_set(struct f2fs_sb_info *sbi,
 }
 
 ```
+
+#### SIT区域的脏数据回写
 ##### f2fs_flush_sit_entries函数
 
-主要过程跟 `f2fs_flush_nat_entries` 类似，将sbi缓存的seg_entry刷写到journal或磁盘中当中
+主要过程跟 `f2fs_flush_nat_entries` 类似，将dirty的seg_entry刷写到journal或sit block中
 
 ```c
 void f2fs_flush_sit_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc)
@@ -353,43 +455,35 @@ static inline void __set_test_and_free(struct f2fs_sb_info *sbi,
 
 ```
 
-#### do_checkpoint函数
+#### Checkpoint区域的回写
+上述分别描述了对NAT和SIT的回写与更新，而`do_checkpoint`是针对Checkpoint区域的更新。Checkpoint主要涉及两部分，第一部分`f2fs_checkpoint`结构的更新，第二部分是curseg的summary数据的回写。在分析这个函数之前，需要知道元数据的Checkpoint区域在磁盘中是如何保存的，磁盘的保存结构如下：
+```
+             +---------------------------------------------------------------------------------------------------+
+             | f2fs_checkpoint | data summaries | hot node summaries | warm node summaries | cold node summaries |
+             +---------------------------------------------------------------------------------------------------+
+                              .                 .             
+                       .                                   .               
+                 .                 compacted summaries                 .        
+                 +----------------+-------------------+----------------+
+                 |hot data journal| cold data journal | data summaries |
+                 +----------------+-------------------+----------------+
+
+                 .                  normal summaries                   .        
+                 +----------------+-------------------+----------------+
+                 |                    data summaries                   |
+                 +----------------+-------------------+----------------+
+```
+其中f2fs_checkpoint、hot/warm/cold node summaries都分别占用一个block的空间。f2fs为了减少Checkpoint的写入开销，将data summaries被设计为可变的。它包含两种写入方式，一种是compacted summaries写入，另一种是normal summaries写入。compacted summaries可以在一次Checkpoint中，减少1~2个page的写入。
+
+
+##### do_checkpoint函数
+下面是简化的`do_checkpoint`函数核心流程，如下所示：
 ```c
 static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 {
-	struct f2fs_checkpoint *ckpt = F2FS_CKPT(sbi);
-	struct f2fs_nm_info *nm_i = NM_I(sbi);
-	unsigned long orphan_num = sbi->im[ORPHAN_INO].ino_num, flags;
-	block_t start_blk;
-	unsigned int data_sum_blocks, orphan_blocks;
-	__u32 crc32 = 0;
-	int i;
-	int cp_payload_blks = __cp_payload(sbi);
-	struct super_block *sb = sbi->sb;
-	struct curseg_info *seg_i = CURSEG_I(sbi, CURSEG_HOT_NODE);
-	u64 kbytes_written;
-	int err;
-
-	/*
-	 * Flush all the NAT/SIT pages
-	 * 将缓存的META区域的所有dirty page全部刷写回磁盘
-	 * */
-	while (get_pages(sbi, F2FS_DIRTY_META)) {
-		f2fs_sync_meta_pages(sbi, META, LONG_MAX, FS_CP_META_IO);
-		if (unlikely(f2fs_cp_error(sbi)))
-			return -EIO;
-	}
-
-	/*
-	 * modify checkpoint
-	 * version number is already updated
-	 *
-	 * 更新checkpoint结构的数据
-	 *
-	 */
-	ckpt->elapsed_time = cpu_to_le64(get_mtime(sbi, true)); // 更新修改时间
-	ckpt->free_segment_count = cpu_to_le32(free_segments(sbi)); // 已经使用的segment数目
-	for (i = 0; i < NR_CURSEG_NODE_TYPE; i++) { // 遍历HOW WARM COLD的NODE，以及更新cur_seg对应的segno，blkoff，alloc_type到CP
+	// 第一部分，根据curseg，修改f2fs_checkpoint结构的信息
+	...
+	for (i = 0; i < NR_CURSEG_NODE_TYPE; i++) {
 		ckpt->cur_node_segno[i] =
 			cpu_to_le32(curseg_segno(sbi, i + CURSEG_HOT_NODE));
 		ckpt->cur_node_blkoff[i] =
@@ -397,7 +491,8 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 		ckpt->alloc_type[i + CURSEG_HOT_NODE] =
 				curseg_alloc_type(sbi, i + CURSEG_HOT_NODE);
 	}
-	for (i = 0; i < NR_CURSEG_DATA_TYPE; i++) { // 遍历HOW WARM COLD的DATA，以及更新cur_seg对应的segno，blkoff，alloc_type到CP
+	//printk("[do-checkpoint] point 3\n");
+	for (i = 0; i < NR_CURSEG_DATA_TYPE; i++) {
 		ckpt->cur_data_segno[i] =
 			cpu_to_le32(curseg_segno(sbi, i + CURSEG_HOT_DATA));
 		ckpt->cur_data_blkoff[i] =
@@ -406,149 +501,95 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 				curseg_alloc_type(sbi, i + CURSEG_HOT_DATA);
 	}
 
-	/* 2 cp  + n data seg summary + orphan inode blocks */
+	// 第二部分，根据curseg，修改summary的信息
+	...
+
 	data_sum_blocks = f2fs_npages_for_summary_flush(sbi, false);
-	spin_lock_irqsave(&sbi->cp_lock, flags);
-	if (data_sum_blocks < NR_CURSEG_DATA_TYPE) // 如果三种WARM HOT COLD都可以在一个page里面完成，那么就设置COMPACT标志
+
+	if (data_sum_blocks < NR_CURSEG_DATA_TYPE)
 		__set_ckpt_flags(ckpt, CP_COMPACT_SUM_FLAG);
 	else
 		__clear_ckpt_flags(ckpt, CP_COMPACT_SUM_FLAG);
-	spin_unlock_irqrestore(&sbi->cp_lock, flags);
 
-	orphan_blocks = GET_ORPHAN_BLOCKS(orphan_num); // 恢复孤儿节点
-	ckpt->cp_pack_start_sum = cpu_to_le32(1 + cp_payload_blks +
-			orphan_blocks);
-
-	if (__remain_node_summaries(cpc->reason))
-		ckpt->cp_pack_total_block_count = cpu_to_le32(F2FS_CP_PACKS+
-				cp_payload_blks + data_sum_blocks +
-				orphan_blocks + NR_CURSEG_NODE_TYPE);
-	else
-		ckpt->cp_pack_total_block_count = cpu_to_le32(F2FS_CP_PACKS +
-				cp_payload_blks + data_sum_blocks +
-				orphan_blocks);
-
-	/* update ckpt flag for checkpoint */
-	update_ckpt_flags(sbi, cpc); // 更新checkpoint的标志
-
-	/*
-	 * update SIT/NAT bitmap
-	 * 更新bitmap
-	 * */
-	get_sit_bitmap(sbi, __bitmap_ptr(sbi, SIT_BITMAP));
-	get_nat_bitmap(sbi, __bitmap_ptr(sbi, NAT_BITMAP));
-
-	crc32 = f2fs_crc32(sbi, ckpt, le32_to_cpu(ckpt->checksum_offset));
-	*((__le32 *)((unsigned char *)ckpt +
-				le32_to_cpu(ckpt->checksum_offset)))
-				= cpu_to_le32(crc32);
-
-	start_blk = __start_cp_next_addr(sbi); // 获取cp的起始地址，一共有两个
-
-	/* write nat bits */
-	if (enabled_nat_bits(sbi, cpc)) {
-		__u64 cp_ver = cur_cp_version(ckpt); // 获取CP的version
-		block_t blk;
-
-		cp_ver |= ((__u64)crc32 << 32);
-		*(__le64 *)nm_i->nat_bits = cpu_to_le64(cp_ver);
-
-		blk = start_blk + sbi->blocks_per_seg - nm_i->nat_bits_blocks;
-		for (i = 0; i < nm_i->nat_bits_blocks; i++)
-			f2fs_update_meta_page(sbi, nm_i->nat_bits +
-					(i << F2FS_BLKSIZE_BITS), blk + i);
-
-		/* Flush all the NAT BITS pages */
-		while (get_pages(sbi, F2FS_DIRTY_META)) {
-			f2fs_sync_meta_pages(sbi, META, LONG_MAX,
-							FS_CP_META_IO);
-			if (unlikely(f2fs_cp_error(sbi)))
-				return -EIO;
-		}
-	}
-
-	/*
-	 * write out checkpoint buffer at block 0
-	 * 更新另外一个CP
-	 * */
-	f2fs_update_meta_page(sbi, ckpt, start_blk++);
-
-	/*
-	 * 刷写目前的内存中的checkpoint信息到磁盘
-	 * */
-	for (i = 1; i < 1 + cp_payload_blks; i++)
-		f2fs_update_meta_page(sbi, (char *)ckpt + i * F2FS_BLKSIZE,
-							start_blk++);
-
-	if (orphan_num) {
-		write_orphan_inodes(sbi, start_blk);
-		start_blk += orphan_blocks;
-	}
-
-	// start_blk经过多次的累加后，进入到summary区域
 	f2fs_write_data_summaries(sbi, start_blk); // 将data summary以及里面的journal写入磁盘
-	start_blk += data_sum_blocks;
-
-	/* Record write statistics in the hot node summary */
-	kbytes_written = sbi->kbytes_written;
-	if (sb->s_bdev->bd_part)
-		kbytes_written += BD_PART_WRITTEN(sbi);
-
-	seg_i->journal->info.kbytes_written = cpu_to_le64(kbytes_written);
 
 	if (__remain_node_summaries(cpc->reason)) {
 		f2fs_write_node_summaries(sbi, start_blk); // 将node summary以及里面的journal写入磁盘
 		start_blk += NR_CURSEG_NODE_TYPE;
 	}
 
-	/* update user_block_counts */
-	sbi->last_valid_block_count = sbi->total_valid_block_count;
-	percpu_counter_set(&sbi->alloc_valid_block_count, 0);
-
-	/* Here, we have one bio having CP pack except cp pack 2 page */
-	f2fs_sync_meta_pages(sbi, META, LONG_MAX, FS_CP_META_IO);
-
-	/* wait for previous submitted meta pages writeback */
-	wait_on_all_pages_writeback(sbi);
-
-	if (unlikely(f2fs_cp_error(sbi)))
-		return -EIO;
-
-	/* flush all device cache */
-	err = f2fs_flush_device_cache(sbi);
-	if (err)
-		return err;
-
-	/* barrier and flush checkpoint cp pack 2 page if it can */
-	commit_checkpoint(sbi, ckpt, start_blk);
-	wait_on_all_pages_writeback(sbi);
-
-	f2fs_release_ino_entry(sbi, false);
-
-	if (unlikely(f2fs_cp_error(sbi)))
-		return -EIO;
-
-	clear_sbi_flag(sbi, SBI_IS_DIRTY);
-	clear_sbi_flag(sbi, SBI_NEED_CP);
-	__set_cp_next_pack(sbi); // 切换cp？
-
-	/*
-	 * redirty superblock if metadata like node page or inode cache is
-	 * updated during writing checkpoint.
-	 */
-	if (get_pages(sbi, F2FS_DIRTY_NODES) ||
-			get_pages(sbi, F2FS_DIRTY_IMETA))
-		set_sbi_flag(sbi, SBI_IS_DIRTY);
-
-	f2fs_bug_on(sbi, get_pages(sbi, F2FS_DIRTY_DENTS));
+	commit_checkpoint(sbi, ckpt, start_blk); // 将修改后的checkpoint区域的数据提交到设备，对磁盘的元数据进行更新
+	
+	...
 
 	return 0;
 }
+```
 
-/*
- * 将cur_seg的journal和entries和footer，刷写入CP-CURSEG区域对应的f2fs_summary_block中
- * 注意CP区域的保存的只有CURSEG的数据，而其他SUMMARY_BLOCK，保存在SSA区域当中
- * */
+首先，第一部分主要是针对元数据区域的`f2fs_checkpoint`结构的修改，其实包括将curseg的当前segno，blkoff等写入到`f2fs_checkpoint`中，以便下次重启时可以根据这些信息，重建curseg。
+
+接下来重点讨论，Checkpoint区域的summary的回写，在分析流程之前，需要分析compacted summaries和normal summaries的差别。
+
+**compacted summaries和normal summaries**
+通过查看curseg的结构可以知道，curseg管理了(NODE,DATA) X (HOT,WARM,COLD)总共6个的segment，因此也需要管理这6个segment对应的`f2fs_summary_block`。
+
+因此一般情况下，每一次checkpoint时候，应该需要回写6种类型的`f2fs_summary_block`，即6个block到磁盘。
+
+为了减少这部分回写的开销，f2fs针对**DATA**类型`f2fs_summary_block`设计一种compacted summary block。一般情况下，DATA需要回写3个`f2fs_summary_block`到磁盘(HOT,WARM,COLD)，但是如果使用了compacted summary block，大部分情况下只需要回写1~2个block。
+
+compacted summary block被设计为在一个block中，同时保存两种类型的journal，以及将HOT,WARM,COLD三种类型的summary混合保存同一个data summaries数组中，它们的差别如下:
+```
+compacted summary block (4KB)
++------------------+
+|hot data journal  |
+|cold data journal |
+|data summaries    | data summaries数组大小是439
++------------------+
+|                  | 如果需要，会接一次纯summary数组的block
+| data summaries   | data summaries数组大小是584
+|                  |
++------------------+
+
+
+normal summary block，表示三种类型的DATA的summary
++--------------------+
+|hot data journal    |
+|hot data summaries  | data summaries数组大小是512
+|                    |
++--------------------+
+|warm data journal   |
+|warm data summaries | data summaries数组大小是512
+|                    |
++--------------------+
+|cold data journal   |
+|cold data summaries | data summaries数组大小是512
+|                    |
++--------------------+
+```
+
+根据上述，不同类型的summary block的可以保存的summary的大小，可以得到
+HOT,WARM,COLD DATA这三种类型，如果目前**加起来**仅使用了
+1. 少于439的block(只修改了439个f2fs_summary)，那么可以通过compacted回写方式进行回写，即通过一个compacted summary block完成回写，需要回写1个block。
+2. 大于439，少于439+584=1023个block，那么可以通过compacted回写方式进行回写，即可以通过compacted summary block加一个纯summary block的方式保存所有信息，需要回写2个block。
+3. 大于1023的情况下，即和normal summary block同样的回写情况，那么就会使用normal summary block的回写方式完成回写，即回写3个block。(因为大于1023情况下，如果继续使用compacted回写，最差的情况下要回写4个block)
+
+接下来进行代码分析：
+```c
+
+// 根据需要回写的summary的数目，返回需要写回的block的数目，返回值有1、2、3
+data_sum_blocks = f2fs_npages_for_summary_flush(sbi, false); 
+
+// 如果data_sum_blocks = 1 或者 2，则表示回写1个或者2个block，则设置CP_COMPACT_SUM_FLAG标志
+if (data_sum_blocks < NR_CURSEG_DATA_TYPE) // NR_CURSEG_DATA_TYPE = 3
+		__set_ckpt_flags(ckpt, CP_COMPACT_SUM_FLAG);
+else
+	__clear_ckpt_flags(ckpt, CP_COMPACT_SUM_FLAG);
+
+// 然后将summary写入磁盘
+f2fs_write_data_summaries(sbi, start_blk); // 将data summary以及里面的journal写入磁盘
+```
+`f2fs_write_data_summaries`函数会判断一下是否设置了CP_COMPACT_SUM_FLAG标志，采取不同的方法写入磁盘
+```c
 void f2fs_write_data_summaries(struct f2fs_sb_info *sbi, block_t start_blk)
 {
 	if (is_set_ckpt_flags(sbi, CP_COMPACT_SUM_FLAG))
@@ -556,7 +597,74 @@ void f2fs_write_data_summaries(struct f2fs_sb_info *sbi, block_t start_blk)
 	else
 		write_normal_summaries(sbi, start_blk, CURSEG_HOT_DATA);
 }
+```
+`write_compacted_summaries`函数会根据上述的compacted block的数据分布，将数据写入到磁盘中
+```c
+static void write_compacted_summaries(struct f2fs_sb_info *sbi, block_t blkaddr)
+{
+	struct page *page;
+	unsigned char *kaddr;
+	struct f2fs_summary *summary;
+	struct curseg_info *seg_i;
+	int written_size = 0;
+	int i, j;
+	int datatypes = CURSEG_COLD_DATA;
+#ifdef CONFIG_F2FS_COMPRESSION
+	datatypes = CURSEG_BG_COMPR_DATA;
+#endif
 
+	page = f2fs_grab_meta_page(sbi, blkaddr++);
+	kaddr = (unsigned char *)page_address(page);
+	memset(kaddr, 0, PAGE_SIZE);
+
+	/* Step 1: write nat cache */
+	seg_i = CURSEG_I(sbi, CURSEG_HOT_DATA); // 第一步写nat的journal
+	memcpy(kaddr, seg_i->journal, SUM_JOURNAL_SIZE);
+	written_size += SUM_JOURNAL_SIZE;
+
+	/* Step 2: write sit cache */
+	seg_i = CURSEG_I(sbi, CURSEG_COLD_DATA);
+	memcpy(kaddr + written_size, seg_i->journal, SUM_JOURNAL_SIZE); // 第二步写sit的journal
+	written_size += SUM_JOURNAL_SIZE;
+
+	/* Step 3: write summary entries */
+	for (i = CURSEG_HOT_DATA; i <= datatypes; i++) { // 开始写summary
+		unsigned short blkoff;
+		seg_i = CURSEG_I(sbi, i);
+		if (sbi->ckpt->alloc_type[i] == SSR)
+			blkoff = sbi->blocks_per_seg;
+		else
+			blkoff = curseg_blkoff(sbi, i);
+
+		for (j = 0; j < blkoff; j++) {
+			if (!page) { // 如果f2fs compacted block写不下，则创建一个纯summary的block
+				page = f2fs_grab_meta_page(sbi, blkaddr++);
+				kaddr = (unsigned char *)page_address(page);
+				memset(kaddr, 0, PAGE_SIZE);
+				written_size = 0;
+			}
+			summary = (struct f2fs_summary *)(kaddr + written_size);
+			*summary = seg_i->sum_blk->entries[j];
+			written_size += SUMMARY_SIZE;
+
+			if (written_size + SUMMARY_SIZE <= PAGE_SIZE -
+							SUM_FOOTER_SIZE)
+				continue;
+
+			set_page_dirty(page); // 如果超过了compaced sum block可以承载的极限，就设置这个block是脏，等待回写
+			f2fs_put_page(page, 1);
+			page = NULL;
+		}
+	}
+	if (page) {
+		set_page_dirty(page);
+		f2fs_put_page(page, 1);
+	}
+}
+```
+
+`write_normal_summaries`函数则是简单地将按照HOT/WARM/COLD的顺序写入到checkpoint区域中
+```c
 static void write_normal_summaries(struct f2fs_sb_info *sbi,
 					block_t blkaddr, int type)
 {
@@ -570,9 +678,6 @@ static void write_normal_summaries(struct f2fs_sb_info *sbi,
 		write_current_sum_page(sbi, i, blkaddr + (i - type));
 }
 
-/*
- * blk_addr HOW/WARM/COLD的summary的起始地址
- * */
 static void write_current_sum_page(struct f2fs_sb_info *sbi,
 						int type, block_t blk_addr)
 {
@@ -587,11 +692,11 @@ static void write_current_sum_page(struct f2fs_sb_info *sbi,
 	mutex_lock(&curseg->curseg_mutex);
 
 	down_read(&curseg->journal_rwsem);
-	memcpy(&dst->journal, curseg->journal, SUM_JOURNAL_SIZE); // 将cur_seg->journal的数据刷写如f2fs_summary_block->journal中
+	memcpy(&dst->journal, curseg->journal, SUM_JOURNAL_SIZE);
 	up_read(&curseg->journal_rwsem);
 
-	memcpy(dst->entries, src->entries, SUM_ENTRY_SIZE); // 将cur_seg->entries的数据刷写如f2fs_summary_block->entries中
-	memcpy(&dst->footer, &src->footer, SUM_FOOTER_SIZE); // 将cur_seg->footer的数据刷写如f2fs_summary_block->footer中
+	memcpy(dst->entries, src->entries, SUM_ENTRY_SIZE);
+	memcpy(&dst->footer, &src->footer, SUM_FOOTER_SIZE);
 
 	mutex_unlock(&curseg->curseg_mutex);
 
