@@ -465,7 +465,7 @@ static inline void __set_test_and_free(struct f2fs_sb_info *sbi,
                        .                                   .               
                  .                 compacted summaries                 .        
                  +----------------+-------------------+----------------+
-                 |hot data journal| cold data journal | data summaries |
+                 |  nat journal   |    sit journal    | data summaries |
                  +----------------+-------------------+----------------+
 
                  .                  normal summaries                   .        
@@ -540,18 +540,30 @@ static int do_checkpoint(struct f2fs_sb_info *sbi, struct cp_control *cpc)
 
 因此一般情况下，每一次checkpoint时候，应该需要回写6种类型的`f2fs_summary_block`，即6个block到磁盘。
 
-为了减少这部分回写的开销，f2fs针对**DATA**类型`f2fs_summary_block`设计一种compacted summary block。一般情况下，DATA需要回写3个`f2fs_summary_block`到磁盘(HOT,WARM,COLD)，但是如果使用了compacted summary block，大部分情况下只需要回写1~2个block。
+为了减少这部分回写的开销，f2fs针对**DATA**类型`f2fs_summary_block`设计了一种compacted summary block。一般情况下，DATA需要回写3个`f2fs_summary_block`到磁盘(HOT,WARM,COLD)，但是如果使用了compacted summary block，大部分情况下只需要回写1~2个block。
 
-compacted summary block被设计为在一个block中，同时保存两种类型的journal，以及将HOT,WARM,COLD三种类型的summary混合保存同一个data summaries数组中，它们的差别如下:
+compacted summary block被设计为通过1~2个block保存当前curseg所有的元信息，它的核心设计是**将HOW WARM COLD DATA的元信息混合保存**:
+
+**混合类型Journal保存**
+compacted summary block分别维护了一个公用的nat journal，以及sit journal，HOT WARM COLD类型的Journal都会混合保存进入两个journal结构中。
+
+在满足COMPACTED的条件下，系统启动时，F2FS会从磁盘中读取这两个Journal到内存中，分别保存在HOT以及COLD所在的curseg->journal中。
+
+不同类型的journal会在CP时刻，通过`f2fs_flush_sit_entries`函数写入到HOT或者COLD对应的curseg->journal区域中。如果HOT或者COLD对应的curseg->journal区域的空间不够了，就将不同类型的journal保存的segment的信息，直接写入到对应的sit entry block中。
+
+接下来将HOT或者COLD对应的curseg->journal包装为compacted block回写到cp区域中。
+
+**混合类型Summary保存**
+b) 以及将HOT,WARM,COLD三种类型的summary混合保存同一个data summaries数组中，它们的差别如下:
 ```
 compacted summary block (4KB)
 +------------------+
-|hot data journal  |
-|cold data journal |
-|data summaries    | data summaries数组大小是439
+|nat journal       |
+|sit journal       |
+|data sum[439]     | data summaries数组大小是439
 +------------------+
-|                  | 如果需要，会接一次纯summary数组的block
-| data summaries   | data summaries数组大小是584
+|                  | 如果需要，会接上一个纯summary数组的block
+| data sum[584]    | data summaries数组大小是584
 |                  |
 +------------------+
 
@@ -572,7 +584,7 @@ normal summary block，表示三种类型的DATA的summary
 +--------------------+
 ```
 
-根据上述，不同类型的summary block的可以保存的summary的大小，可以得到
+根据上面的描述，不同类型的summary block的可以保存的summary的大小，可以得到
 HOT,WARM,COLD DATA这三种类型，如果目前**加起来**仅使用了
 1. 少于439的block(只修改了439个f2fs_summary)，那么可以通过compacted回写方式进行回写，即通过一个compacted summary block完成回写，需要回写1个block。
 2. 大于439，少于439+584=1023个block，那么可以通过compacted回写方式进行回写，即可以通过compacted summary block加一个纯summary block的方式保存所有信息，需要回写2个block。
