@@ -38,3 +38,4 @@
 3. [f2fs_journal的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_journal.md)
 4. [f2fs_fill_super的分析](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_fill_super.md)
 5. [f2fs_map_block的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_map_blocks.md)
+6. [CURSEG的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/curseg.md)
