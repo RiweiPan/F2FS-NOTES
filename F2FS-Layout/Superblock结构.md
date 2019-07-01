@@ -1,5 +1,8 @@
 # Superblock结构
-Superblock保存了F2FS的核心元数据的结构，包括磁盘大小，元区域的各个部分的起始地址等。`f2fs_super_block`则是F2FS对Superblock的具体数据结构实现，它保存在磁盘的最开始的位置，F2FS进行启动的时候从磁盘的前端直接读取出来。
+Superblock保存了F2FS的核心元数据的结构，包括磁盘大小，元区域的各个部分的起始地址等。
+
+## Superblock物理存放区域结构
+`f2fs_super_block`是F2FS对Superblock的具体数据结构实现，它保存在磁盘的最开始的位置，F2FS进行启动的时候从磁盘的前端直接读取出来。
 
 ```c
 
@@ -85,4 +88,84 @@ feature = 0
 encryption_level = 
 ```
 
-`f2fs_super_block`只在文件系统初始化的时候使用，表示实际存在于磁盘中的数据。大部分情况下系统使用的都是superblock的另外一个结构`f2fs_sb_info`，简称`sbi`，这个结构在文件系统初始化时侯，通过读取`f2fs_super_block`的数据进行初始化，只存于内存当中。这个结构是F2FS文件系统使用最多的数据结构，因为它包含了SIT、NAT、SSA、Checkpoint等多个重要的元数据结构信息，因此几乎F2FS中所有的动作都需要通过`sbi`进行处理。
+## Superblock内存存管理结构
+如上一节所述，`f2fs_super_block`在内存中的对应的结构是`struct f2fs_sb_info`，它除了包含了`struct f2fs_super_block`的信息以外，还包含了一些额外的功能，如锁、SIT、NAT对应的内存管理结构等，简单如下所述：
+```c
+struct f2fs_sb_info {
+	struct super_block *sb;			/* pointer to VFS super block */
+	struct f2fs_super_block *raw_super;	/* raw super block pointer */
+	struct rw_semaphore sb_lock;		/* lock for raw super block */
+
+	/* for node-related operations */
+	struct f2fs_nm_info *nm_info;		/* node manager */
+	struct inode *node_inode;		/* cache node blocks */
+
+	/* for segment-related operations */
+	struct f2fs_sm_info *sm_info;		/* segment manager */
+
+	/* for checkpoint */
+	struct f2fs_checkpoint *ckpt;		/* raw checkpoint pointer */
+
+	/* for orphan inode, use 0'th array */
+	unsigned int max_orphans;		/* max orphan inodes */
+
+	struct f2fs_mount_info mount_opt;	/* mount options */
+
+	/* for cleaning operations */
+	struct mutex gc_mutex;			/* mutex for GC */
+	struct f2fs_gc_kthread	*gc_thread;	/* GC thread */
+	unsigned int cur_victim_sec;		/* current victim section num */
+	unsigned int gc_mode;			/* current GC state */
+};
+```
+它的初始化在`init_sb_info`函数完成:
+```c
+static void init_sb_info(struct f2fs_sb_info *sbi)
+{
+	struct f2fs_super_block *raw_super = sbi->raw_super;
+	int i, j;
+
+	sbi->log_sectors_per_block =
+		le32_to_cpu(raw_super->log_sectors_per_block);
+	sbi->log_blocksize = le32_to_cpu(raw_super->log_blocksize);
+	sbi->blocksize = 1 << sbi->log_blocksize;
+	sbi->log_blocks_per_seg = le32_to_cpu(raw_super->log_blocks_per_seg);
+	sbi->blocks_per_seg = 1 << sbi->log_blocks_per_seg;
+	sbi->segs_per_sec = le32_to_cpu(raw_super->segs_per_sec);
+	sbi->secs_per_zone = le32_to_cpu(raw_super->secs_per_zone);
+	sbi->total_sections = le32_to_cpu(raw_super->section_count);
+	sbi->total_node_count =
+		(le32_to_cpu(raw_super->segment_count_nat) / 2)
+			* sbi->blocks_per_seg * NAT_ENTRY_PER_BLOCK;
+	sbi->root_ino_num = le32_to_cpu(raw_super->root_ino);
+	sbi->node_ino_num = le32_to_cpu(raw_super->node_ino);
+	sbi->meta_ino_num = le32_to_cpu(raw_super->meta_ino);
+	sbi->cur_victim_sec = NULL_SECNO;
+	sbi->max_victim_search = DEF_MAX_VICTIM_SEARCH;
+
+	sbi->dir_level = DEF_DIR_LEVEL;
+	sbi->interval_time[CP_TIME] = DEF_CP_INTERVAL;
+	sbi->interval_time[REQ_TIME] = DEF_IDLE_INTERVAL;
+	clear_sbi_flag(sbi, SBI_NEED_FSCK);
+
+	for (i = 0; i < NR_COUNT_TYPE; i++)
+		atomic_set(&sbi->nr_pages[i], 0);
+
+	for (i = 0; i < META; i++)
+		atomic_set(&sbi->wb_sync_req[i], 0);
+
+	INIT_LIST_HEAD(&sbi->s_list);
+	mutex_init(&sbi->umount_mutex);
+	for (i = 0; i < NR_PAGE_TYPE - 1; i++)
+		for (j = HOT; j < NR_TEMP_TYPE; j++)
+			mutex_init(&sbi->wio_mutex[i][j]);
+	init_rwsem(&sbi->io_order_lock);
+	spin_lock_init(&sbi->cp_lock);
+
+	sbi->dirty_device = 0;
+	spin_lock_init(&sbi->dev_lock);
+
+	init_rwsem(&sbi->sb_lock);
+}
+
+```
