@@ -52,7 +52,7 @@ struct f2fs_checkpoint {
 
 ### Active Segments区域
 #### Active Segments的定义
-Active Segments即当前正在用于分配的segment，如用户需要写入8KB数据，那么就会从active segments分配两个block提供给用户写入到磁盘中。F2FS为了提高数据分配的效率，根据数据的特性，一共定义了6个active segment。如[总体结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/%E6%80%BB%E4%BD%93%E7%BB%93%E6%9E%84.md)这一节的multi-head logging特性所描述，这6个active segments对应了(HOT, WARM, COLD) X (NODE, DATA)的数据。
+Active Segments，又称current segment(CURSEG)，即当前正在用于分配的segment，如用户需要写入8KB数据，那么就会从active segments分配两个block提供给用户写入到磁盘中。F2FS为了提高数据分配的效率，根据数据的特性，一共定义了6个active segment。如[总体结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/%E6%80%BB%E4%BD%93%E7%BB%93%E6%9E%84.md)这一节的multi-head logging特性所描述，这6个active segments对应了(HOT, WARM, COLD) X (NODE, DATA)的数据。
 
 #### Active Segment与恢复相关的数据结构
 CP的主要任务是维护数据一致性，因此CP的Active Segment区域的主要任务是维护Active Segment的分配状态，使系统宕机时候可以恢复正常。维护Active Segment需要维护三种信息，分别是`f2fs_checkpoint`的信息，以及该segment对应的journal和summary的信息。
