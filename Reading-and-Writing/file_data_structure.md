@@ -91,7 +91,7 @@ Linux的文件是通过page进行组织起来的，默认page的size是4KB，使
 第三步: `indirect_node`保存的是`direct_node`的nid数组，由于 4000 - 923 - 1018 - 1018 = 1041，而一个`direct_node`只能保存1018个block，因此可以知道数据位于`indirect_node->nid[1]`对应的`direct_node`中
 第四步: 计算剩下的的偏移(4000-923-1018-1018-1018=23)找到数据的物理地址位于该`direct_node`的`direct_node->addr[23]`中。
 
-F2FS中常用函数`f2fs_get_dnode_of_data`完成这一步骤
+F2FS中常用函数`f2fs_get_dnode_of_data`完成这一步骤，可以参考[物理地址寻址的实现](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/get_dnode.md) 。
 
 
 

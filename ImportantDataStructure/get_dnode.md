@@ -49,6 +49,7 @@ level=2: 表示可以在`f2fs_inode->i_nid[2~3]`对应的`indirect_node`下的ni
 level=3: 表示只能在`f2fs_inode->i_nid[4]`对应`indirect_node`的nid对应的`indirect_node`的nid对应的`direct_node`才能找到地址
 
 由于offset和noffset，表示的是物理地址寻址信息，它的表示比较复杂，分别使用block offset和node offset来表示，因此用3个例子来描述
+
 **例子1: 物理地址位于f2fs_inode**
 如page->index = 665的page，它位于`f2fs_inode->i_addr[665]`对应的物理地址处，它的输出值为:
 ```c
