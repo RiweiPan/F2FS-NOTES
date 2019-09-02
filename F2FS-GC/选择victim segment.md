@@ -130,7 +130,7 @@ static void select_policy(struct f2fs_sb_info *sbi, int gc_type,
 }
 ```
 
-###　循环查找最小cost的segment
+###查找最小cost的segment
 在分析下一步循环之前，我们要明确循环的目的是什么。f2fs通过变量**cost**表示gc这个segment所带来的开销，cost的值根据不同的算法也不一样。`get_victim_by_default`函数目的是找到一个cost最低的segment进行回收，因此在找到之前需要设定一个最大cost，用于一步步遍历降低cost。
 ```c
 	while (1) {
@@ -166,7 +166,7 @@ static void select_policy(struct f2fs_sb_info *sbi, int gc_type,
 ```
 首先通过`find_next_bit` 函数，从`p.dirty_segmap`找到第一个dirty的segment出来，然后通过`get_gc_cost`函数计算这个segment的cost。然后判断是否少于`p.min_cost`，然后赋值。最后循环到达了最大搜索次数以后旧退出。此时的segment及时本次选择过程中得到的cost最小的segment，最后返回到*result中，完成这个victim segment选择流程。
 
-###　cost算法
+###cost算法
 F2FS使用了两种计算cost的算法，分别是Greedy算法和Cost-Benefit算法。
 
 ```c
