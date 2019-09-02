@@ -25,7 +25,6 @@
 ### 四、垃圾回收流程
 1. [垃圾回收流程分析](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-GC/GC%E6%B5%81%E7%A8%8B%E4%BB%8B%E7%BB%8D.md)
 2. [如何选择victim segment](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-GC/%E9%80%89%E6%8B%A9victim%20segment.md)
-3. [如何对页进行迁移](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-GC/%E5%A6%82%E4%BD%95%E8%BF%9B%E8%A1%8C%E9%A1%B5%E8%BF%81%E7%A7%BB.md)
 
 ### 五、数据恢复流程
 1. [数据恢复的原理以及方式](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Data-Recovery/%E6%95%B0%E6%8D%AE%E6%81%A2%E5%A4%8D%E7%9A%84%E5%8E%9F%E7%90%86%E4%BB%A5%E5%8F%8A%E6%96%B9%E5%BC%8F.md)
