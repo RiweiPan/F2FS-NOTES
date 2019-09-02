@@ -1,4 +1,4 @@
-# F2FS笔记、备忘录
+# F2FS笔记
 
 ### 实验环境的搭建
 [实验环境的搭建](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Experiment/实验环境搭建.md)

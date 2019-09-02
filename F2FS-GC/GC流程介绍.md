@@ -218,13 +218,13 @@ static void do_garbage_collect(struct f2fs_sb_info *sbi, unsigned int segno,
 
 核心循环由于`next_step`的跳转，执行了4次，每一次循环都对应了一个阶段，分别是phase=0~3，通过continue关键词使每一次循环只执行一部分操作。我们每一阶段进行分析。
 
-**第一阶段(phase=0): ** 根据`entry`记录的nid，通过`ra_node_page`函数可以将这个nid对应的node page读入到内存当中。
+**第一阶段(phase=0):** 根据`entry`记录的nid，通过`ra_node_page`函数可以将这个nid对应的node page读入到内存当中。
 
-**第二阶段(phase=1): ** 根据`start_addr`以及`entry`，通过`check_dnode`函数，找到了对应的`struct node_info *dni`，它记录这个block是属于哪一个inode(inode no)，然后将对应的inode page读入到内存当中。
+**第二阶段(phase=1):** 根据`start_addr`以及`entry`，通过`check_dnode`函数，找到了对应的`struct node_info *dni`，它记录这个block是属于哪一个inode(inode no)，然后将对应的inode page读入到内存当中。
 
-**第三阶段(phase=2): ** 首先通过`entry->ofs_in_node`获取到当前block属于node的第几个block，然后通过`start_bidx_of_node`函数获取到当前block是属于从`inode page`开始的第几个block，其实本质上就是`start_bidx + ofs_in_node = page->index`的值。然后根据`page->index`找到对应的`data page`，读入到内存中以便后续使用。最后就是将该inode加入到上面提及过的inode list中。
+**第三阶段(phase=2):** 首先通过`entry->ofs_in_node`获取到当前block属于node的第几个block，然后通过`start_bidx_of_node`函数获取到当前block是属于从`inode page`开始的第几个block，其实本质上就是`start_bidx + ofs_in_node = page->index`的值。然后根据`page->index`找到对应的`data page`，读入到内存中以便后续使用。最后就是将该inode加入到上面提及过的inode list中。
 
-**第三阶段(phase=3): ** 从inode list中取出一个inode，然后根据`start_bidx + ofs_in_node`找到对应的`page->index`，然后通过`move_data_page`函数，将数据写入到其他segment中。
+**第三阶段(phase=3):** 从inode list中取出一个inode，然后根据`start_bidx + ofs_in_node`找到对应的`page->index`，然后通过`move_data_page`函数，将数据写入到其他segment中。
 
 需要注意的是，上述很多的操作都是为了将数据读入内存中，这样系统可以快速地进行下一个步骤。
 
