@@ -2,14 +2,10 @@
 Checkpoint是维护F2FS的数据一致性的结构，它维护了系统当前的状态，例如segment的分配情况，node的分配情况，以及当前的active segment的状态等。F2FS在满足一定的条件的情况下，将当前系统的状态写入Checkpoint中，万一系统出现突然宕机，这个是F2FS可以从Checkpoint中恢复到上次回写时的状态，以保证数据的可恢复性。F2FS维护了两个Checkpoint结构，互为备份，其中一个是当前正在使用的Checkpoint，另外一个上次回写的稳定的Chcekpoint。如果系统出现了宕机，那么当前的Checkpoint就会变得不可信任，进而使用备份Checkpoint进行恢复。
 
 
-## Checkpoint物理存放区域结构
-Checkpoint区域由几个部分构成，分别是checkpoint元数据区域、orphan node区域、active segments区域：
+## Checkpoint在元数据区域的结构
+![cp_layout](../img/F2FS-Layout/cp_layout.png)
 
-```
-+-------------------+-------------+----------------+-------------------+
-| f2fs_checkpoint 1 | orphan node | active segments | f2fs_checkpoint 2 |
-+-------------------+-------------+----------------+-------------------+
-```
+Checkpoint区域由几个部分构成，分别是checkpoint元数据区域、orphan node区域、active segments区域。同时active segments区域在不同的情况下，会有不同的形式，目的是减少IO的写入，详细参考Checkpoint的章节。
 
 ### Checkpoint元数据区域
 F2FS使用数据结构`f2fs_checkpoint`表示Checkpoint结构，它保存在磁盘中`f2fs_super_block`之后区域中，数据结构如下：
