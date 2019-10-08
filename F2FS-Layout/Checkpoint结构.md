@@ -2,10 +2,10 @@
 Checkpoint是维护F2FS的数据一致性的结构，它维护了系统当前的状态，例如segment的分配情况，node的分配情况，以及当前的active segment的状态等。F2FS在满足一定的条件的情况下，将当前系统的状态写入Checkpoint中，万一系统出现突然宕机，这个是F2FS可以从Checkpoint中恢复到上次回写时的状态，以保证数据的可恢复性。F2FS维护了两个Checkpoint结构，互为备份，其中一个是当前正在使用的Checkpoint，另外一个上次回写的稳定的Chcekpoint。如果系统出现了宕机，那么当前的Checkpoint就会变得不可信任，进而使用备份Checkpoint进行恢复。
 
 
-## Checkpoint在元数据区域的结构
+## Checkpoint在元数据区域的物理结构
 ![cp_layout](../img/F2FS-Layout/cp_layout.png)
 
-Checkpoint区域由几个部分构成，分别是checkpoint元数据区域、orphan node区域、active segments区域。同时active segments区域在不同的情况下，会有不同的形式，目的是减少IO的写入，详细参考Checkpoint的章节。
+根据上述的结构图，Checkpoint区域由几个部分构成，分别是checkpoint元数据区域(f2fs_checkpoint)、orphan node区域、active segments区域。同时active segments区域在不同的情况下，会有不同的形式，目的是减少IO的写入，详细参考Checkpoint的章节。
 
 ### Checkpoint元数据区域
 F2FS使用数据结构`f2fs_checkpoint`表示Checkpoint结构，它保存在磁盘中`f2fs_super_block`之后区域中，数据结构如下：
@@ -73,7 +73,7 @@ struct f2fs_journal {
 - **Segment对应的Summary信息**：Summary同样在CP区域和SSA区域有出现，它表示的是逻辑地址和物理地址的映射关系，这个映射关系会使用到GC流程中。Summary与segment是一对一的关系，一个summary保存了一个segment所有的block的物理地址和逻辑地址的映射关系。Summary保存在CP区域中同样是出于减少IO的写入。
 
 
-## Checkpoint内存存管理结构
+## Checkpoint内存管理结构
 Checkpoint的内存管理结构是`struct f2fs_checkpoint`本身，因为Checkpoint一般只在F2FS启动的时候被读取数据，用于数据恢复，而在运行过程中大部分情况都是被写，用于记录恢复信息。因此，Checkpoint不需要过于复杂的内存管理结构，因此使用`struct f2fs_checkpoint`本身即可以满足需求。
 
 另一方面，Active Segments区域的信息涉及到系统block地址的分配，因此需要特定的管理结构`struct curseg_info`进行管理，它的定义如下:
