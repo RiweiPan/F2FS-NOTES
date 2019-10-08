@@ -39,5 +39,9 @@ struct f2fs_summary {
 
 
 
+`struct summary_footer`结构记录了校验信息，以及这个summary对应的segment是属于保存data数据的segment还是node数据的segment。
+
+
+
 ## SSA内存管理结构
-SSA在内存没有单独的管理结构，summary以及journal在内存中主要存在于`CURSEG`中。
+SSA在内存没有单独的管理结构，summary以及journal在内存中主要存在于`CURSEG`中，可以从[checkpoint章节](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Checkpoint/Checkpoint%E6%B5%81%E7%A8%8B.md)找到相关的描述。
