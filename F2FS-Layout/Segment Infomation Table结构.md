@@ -9,7 +9,7 @@ Segment Infomation Tabel，简称SIT，是F2FS用于集中管理segment状态的
 ## SIT在元数据区域的物理结构
 ![cp_layout](../img/F2FS-Layout/sit_layout.png)
 
-从结构体可以知道，SIT区域默认情况下包含了2个segment(1024个block)数目的`struct f2fs_sit_block`组成，每一个`struct f2fs_sit_block`包含了55个`struct f2fs_sit_entry`，每一个entry对应了一个segment的管理状态。每一个entry包含了三个变量: vblocks(记录这个segment有多少个block已经被使用了)，valid_map(记录这个segment里面的哪一些block是无效的)，mtime(表示修改时间)。
+从结构图可以知道，SIT区域由N个`struct f2fs_sit_block`组成，每一个`struct f2fs_sit_block`包含了55个`struct f2fs_sit_entry`，每一个entry对应了一个segment的管理状态。每一个entry包含了三个变量: vblocks(记录这个segment有多少个block已经被使用了)，valid_map(记录这个segment里面的哪一些block是无效的)，mtime(表示修改时间)。
 
 ### SIT物理存放区域结构
 
