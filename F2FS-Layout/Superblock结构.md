@@ -127,7 +127,7 @@ struct f2fs_sb_info {
 ```c
 static void init_sb_info(struct f2fs_sb_info *sbi)
 {
-	struct f2fs_super_block *raw_super = sbi->raw_super;
+	struct f2fs_super_block *raw_super = sbi->raw_super; // raw_supaer就是F2FS在磁盘中的结构，F2FS需要根据这个raw_super的信息，创建对应的内存结构struct f2fs_sb_info
 	int i, j;
 
 	sbi->log_sectors_per_block =

@@ -5,7 +5,7 @@ Checkpoint是维护F2FS的数据一致性的结构，它维护了系统当前的
 ## Checkpoint在元数据区域的物理结构
 ![cp_layout](../img/F2FS-Layout/cp_layout.png)
 
-根据上述的结构图，Checkpoint区域由几个部分构成，分别是checkpoint元数据区域(f2fs_checkpoint)、orphan node区域、active segments区域。同时active segments区域在不同的情况下，会有不同的形式，目的是减少IO的写入，详细参考Checkpoint的章节。
+根据上述的结构图，Checkpoint区域由几个部分构成，分别是checkpoint元数据区域(f2fs_checkpoint)、orphan node区域、active segments区域。同时active segments区域在不同的情况下，会有不同的形式，目的是减少IO的写入。接下来分别讨论Checkpoint不同的部分。
 
 ### Checkpoint元数据区域
 F2FS使用数据结构`f2fs_checkpoint`表示Checkpoint结构，它保存在磁盘中`f2fs_super_block`之后区域中，数据结构如下：
@@ -48,14 +48,14 @@ struct f2fs_checkpoint {
 
 ### Active Segments区域
 #### Active Segments的定义
-Active Segments，又称current segment(CURSEG)，即当前正在用于分配的segment，如用户需要写入8KB数据，那么就会从active segments分配两个block提供给用户写入到磁盘中。F2FS为了提高数据分配的效率，根据数据的特性，一共定义了6个active segment。如[总体结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/%E6%80%BB%E4%BD%93%E7%BB%93%E6%9E%84.md)这一节的multi-head logging特性所描述，这6个active segments对应了(HOT, WARM, COLD) X (NODE, DATA)的数据。
+Active Segments，又称current segment(CURSEG)，即当前正在用于进行数据分配的segment，如用户需要写入8KB数据，那么就会从active segments分配两个block提供给用户写入到磁盘中。F2FS为了提高数据分配的效率，根据数据的特性，一共定义了6个active segment。如[总体结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/%E6%80%BB%E4%BD%93%E7%BB%93%E6%9E%84.md)这一节的multi-head logging特性所描述，这6个active segments对应了(HOT, WARM, COLD) X (NODE, DATA)的数据。
 
 #### Active Segment与恢复相关的数据结构
 CP的主要任务是维护数据一致性，因此CP的Active Segment区域的主要任务是维护Active Segment的分配状态，使系统宕机时候可以恢复正常。维护Active Segment需要维护三种信息，分别是`f2fs_checkpoint`的信息，以及该segment对应的journal和summary的信息。
 
-- **f2fs_checkpoint中Active Segment信息**：从上面给出的`f2fs_checkpoint`定义，`cur_node_segno[MAX_ACTIVE_NODE_LOGS]`和`cur_data_segno[MAX_ACTIVE_DATA_LOGS]`表示node和data当前的Active Segment的编号，系统可以通过这个编号找到对应的segment。`MAX_ACTIVE_NODE_LOGS`以及`MAX_ACTIVE_NODE_LOGS`分别表示data和node有多少种类型，F2FS默认情况下都等于3，表示HOT、WARM、COLD类型数据。`cur_node_blkoff[MAX_ACTIVE_NODE_LOGS]`以及`cur_data_blkoff[MAX_ACTIVE_DATA_LOGS]`则分别表示当前Active Segment分配到哪一个block(一个segment包含了512个block)。
+- **f2fs_checkpoint中Active Segment信息**：从上面给出的`f2fs_checkpoint`定义，`cur_node_segno[MAX_ACTIVE_NODE_LOGS]`和`cur_data_segno[MAX_ACTIVE_DATA_LOGS]`表示node和data当前的Active Segment的编号(segment number, segno)，系统可以通过这个编号找到对应的segment。`MAX_ACTIVE_NODE_LOGS`以及`MAX_ACTIVE_NODE_LOGS`分别表示data和node有多少种类型，F2FS默认情况下都等于3，表示、、即HOT、WARM、COLD类型数据。`cur_node_blkoff[MAX_ACTIVE_NODE_LOGS]`以及`cur_data_blkoff[MAX_ACTIVE_DATA_LOGS]`则分别表示当前Active Segment分配到哪一个block(一个segment包含了512个block)。
 
-- **Segment对应的Journal信息**：Journal在两处地方都有出现，分别是CP区域以及SSA区域。F2FS定义的journal结构如下，它主要保存了NODE以及SEGMENT的修改信息。如系统分配出一个block给用户，那么就要将这个block在bitmap中标记为已分配，防止其他请求使用。分两个区域存放journal是为了减轻频繁更新导致的系统性能下降。例如，当系统写压力很大的时候，bitmap就会频繁被更新，如果这个时候频繁将bitmap写入SSA，就会加重写压力。因此CP区域的Journal的作用就是维护这些经常修改的数据，等待CP被触发的时候才吸入磁盘，从而减少写压力。
+- **Segment对应的Journal信息**：Journal在两处地方都有出现，分别是CP区域以及SSA区域。CP区域的journal主要用来保存**active segment**的修改信息，而SSA区域的则是持久化保存的**所有的segment**的journal信息。F2FS定义的journal结构如下，它主要保存了NODE以及SEGMENT的修改信息。如系统分配出一个block给用户，那么就要将这个block在bitmap中标记为已分配，防止其他请求使用。分两个区域存放journal是为了减轻频繁更新导致的系统性能下降。例如，当系统写压力很大的时候，bitmap就会频繁被更新，如果这个时候频繁将bitmap写入SSA，就会加重写压力。因此CP区域的Journal的作用就是维护这些经常修改的数据，等待CP被触发的时候才吸入磁盘，从而减少写压力。
 ```c
 struct f2fs_journal {
 	union {
