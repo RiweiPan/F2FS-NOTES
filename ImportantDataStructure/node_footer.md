@@ -56,7 +56,7 @@ enum {
 
 
 
-##　footer->cp_ver和footer->next_blkaddr
+### footer->cp_ver和footer->next_blkaddr
 
 `footer->cp_ver`分别用来记录当前的checkpoint的version，恢复的时候比较version版本确定如何进行数据恢复。
 
