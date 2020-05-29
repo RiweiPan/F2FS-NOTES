@@ -12,9 +12,9 @@
 6. [Segment Summary Area结构(SSA)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Segment%20Summary%20Area%E7%BB%93%E6%9E%84.md)
 
 ### 二、文件数据的存储以及读写
-1. [文件读写与物理地址的映射](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/file_data_structure.md)
-2. [读流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E8%AF%BB%E6%B5%81%E7%A8%8B.md)
-3. [写流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E5%86%99%E6%B5%81%E7%A8%8B.md)
+1. [F2FS文件数据组织方式](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/file_data_structure.md)
+2. [一般文件读流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E8%AF%BB%E6%B5%81%E7%A8%8B.md)
+3. [一般文件写流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E5%86%99%E6%B5%81%E7%A8%8B.md)
 
 ### 三、文件与目录的创建以及删除
 1. [一般文件的创建(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E6%96%87%E4%BB%B6%E5%88%9B%E5%BB%BA.md)
@@ -39,3 +39,4 @@
 5. [f2fs_map_block的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_map_blocks.md)
 6. [CURSEG的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/curseg.md)
 7. [物理地址寻址的实现](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/get_dnode.md) 
+8. [node_footer的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/node_footer.md) 

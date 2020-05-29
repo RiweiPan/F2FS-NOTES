@@ -1,5 +1,5 @@
-# Segment Infomation Tabel-SIT结构
-Segment Infomation Tabel，简称SIT，是F2FS用于集中管理segment状态的结构。它的主要作用是维护的segment的分配信息，它的作用使用两个常见例子进行阐述:
+# Segment Infomation Table-SIT结构
+Segment Infomation Table，简称SIT，是F2FS用于集中管理segment状态的结构。它的主要作用是维护的segment的分配信息，它的作用使用两个常见例子进行阐述:
 
 - 用户进行写操作，那么segment会根据用户写入的数据量分配特定数目的block给用户进行数据写入，SIT会将这些已经被分配的block标记为"已经使用"，那么之后的写操作就不会再使用这些block。
 - 用户进行了**覆盖写**操作以后，由于F2FS异地更新的特性，F2FS会分配新block给用户写入，同时会将旧block置为无效状态，这样gc的时候可以根据segment无效的block的数目，采取某种策略进行回收。
