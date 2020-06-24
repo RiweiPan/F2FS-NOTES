@@ -1,15 +1,15 @@
-# Segment Infomation Table-SIT结构
-Segment Infomation Table，简称SIT，是F2FS用于集中管理segment状态的结构。它的主要作用是维护的segment的分配信息，它的作用使用两个常见例子进行阐述:
+# Segment Infomation Table区域-SIT结构
+Segment Infomation Table，简称SIT，是F2FS用于集中管理segment状态的结构。它的主要作用是维护的segment的分配信息，它的作用可以使用两个常见例子进行描述:
 
-- 用户进行写操作，那么segment会根据用户写入的数据量分配特定数目的block给用户进行数据写入，SIT会将这些已经被分配的block标记为"已经使用"，那么之后的写操作就不会再使用这些block。
-- 用户进行了**覆盖写**操作以后，由于F2FS异地更新的特性，F2FS会分配新block给用户写入，同时会将旧block置为无效状态，这样gc的时候可以根据segment无效的block的数目，采取某种策略进行回收。
+- 用户进行写操作，那么segment会根据用户写入的数据量分配特定数目的block给用户进行数据写入，SIT会将这些已经被分配的block标记为"已经使用(valid状态)"，那么之后的写操作就不会再使用这些block。
+- 用户进行了**覆盖写**操作以后，由于F2FS**异地更新**的特性，F2FS会分配新block给用户写入，同时会将旧block置为"无效状态(invalid状态)"，这样gc的时候可以根据segment无效的block的数目，采取某种策略进行回收。
 
 综上所述，SIT的作用是维护每一个segment的block的使用状态以及有效无效状态。
 
 ## SIT在元数据区域的物理结构
-![cp_layout](../img/F2FS-Layout/sit_layout.png)
+![cp_layout](../img/F2FS-Layout/sit_layout2.png)
 
-从结构图可以知道，SIT区域由N个`struct f2fs_sit_block`组成，每一个`struct f2fs_sit_block`包含了55个`struct f2fs_sit_entry`，每一个entry对应了一个segment的管理状态。每一个entry包含了三个变量: vblocks(记录这个segment有多少个block已经被使用了)，valid_map(记录这个segment里面的哪一些block是无效的)，mtime(表示修改时间)。
+如上图所示，SIT区域由N个`struct f2fs_sit_block`组成，每一个`struct f2fs_sit_block`包含了55个`struct f2fs_sit_entry`，每一个entry对应了一个segment的管理状态。每一个entry包含了三个变量: vblocks(记录这个segment有多少个block已经被使用了)，valid_map(记录这个segment里面的哪一些block是无效的)，mtime(表示修改时间)。
 
 ### SIT物理存放区域结构
 
@@ -31,13 +31,13 @@ struct f2fs_sit_entry {
 } __packed;
 ```
 
-第一个参数`vblocks`表示当前segment有多少个block已经被使用，第二个参数`valid_map`表示segment内的每一个block的有效无效信息; 由于一个segment包含了512个block，因此需要用512个bit去表示每一个block的有效无效状态，因此`SIT_VBLOCK_MAP_SIZE`的值是64(8*64=512)。最后一个参数`mtime`表示这个entry被修改的时间。
+第一个参数`vblocks`表示当前segment有多少个block已经被使用，第二个参数`valid_map`表示segment内的每一个block的有效无效信息; 由于一个segment包含了512个block，因此需要用512个bit去表示每一个block的有效无效状态，因此`SIT_VBLOCK_MAP_SIZE`的值是64(8*64=512)。最后一个参数`mtime`表示这个entry被修改的时间，用于挑选GC时需要使用的segment。
 
 
 
 ## SIT内存管理结构
 
-SIT在内存中对应的管理结构是`struct sm_info`，它在` build_segment_manager`函数进行初始化:
+SIT在内存中对应的管理结构是`struct f2fs_sm_info`，它在` build_segment_manager`函数进行初始化:
 
 ```c
 int build_segment_manager(struct f2fs_sb_info *sbi)
@@ -214,7 +214,7 @@ struct seg_entry {
 
 
 
-其实物理entry也包含了type的信息，但是为了节省空间，将type于vblocks存放在了一起，及vblocks的前10位表示数目，后6位表示type，他们的关系可以用`f2fs_fs.h`找到:
+其实物理entry也包含了segment  type的信息，但是为了节省空间，将segment type于vblocks存放在了一起，及vblocks的前10位表示数目，后6位表示segment type，他们的关系可以用`f2fs_fs.h`找到:
 
 ```c
 #define SIT_VBLOCKS_SHIFT	10
@@ -225,8 +225,6 @@ struct seg_entry {
 	((le16_to_cpu((raw_sit)->vblocks) & ~SIT_VBLOCKS_MASK)	\
 	 >> SIT_VBLOCKS_SHIFT)
 ```
-
-
 
 因此，内存entry实际上仅仅多了2个与checkpoint相关的信息，即`ckpt_valid_blocks`与`ckpt_valid_map`。在系统执行checkpoint的时候，会将`valid_blocks`以及`cur_valid_map`的值分别写入`ckpt_valid_blocks`与`ckpt_valid_map`，当系统出现宕机的时候根据这个值恢复映射信息。
 
@@ -296,7 +294,7 @@ static void init_free_segmap(struct f2fs_sb_info *sbi)
 }
 ```
 
-`init_dirty_segmap`恢复脏segment的信息
+`init_dirty_segmap`函数恢复脏segment的信息
 
 ```c
 static void init_dirty_segmap(struct f2fs_sb_info *sbi)

@@ -3,13 +3,13 @@
 ### 实验环境的搭建
 [实验环境的搭建](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Experiment/实验环境搭建.md)
 
-### 一、文件系统布局以及结构
+### 一、文件系统布局以及元数据结构
 1. [总体结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/%E6%80%BB%E4%BD%93%E7%BB%93%E6%9E%84.md)
-2. [Superblock结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Superblock%E7%BB%93%E6%9E%84.md)
-3. [Checkpoint结构](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Checkpoint%E7%BB%93%E6%9E%84.md)
-4. [Segment Infomation Table结构(SIT)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Segment%20Infomation%20Table%E7%BB%93%E6%9E%84.md)
-5. [Node Address Table结构(NAT)(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Node%20Address%20Table%E7%BB%93%E6%9E%84.md)
-6. [Segment Summary Area结构(SSA)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Segment%20Summary%20Area%E7%BB%93%E6%9E%84.md)
+2. [Superblock区域](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Superblock%E7%BB%93%E6%9E%84.md)
+3. [Checkpoint区域](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Checkpoint%E7%BB%93%E6%9E%84.md)
+4. [Segment Infomation Table区域(SIT)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Segment%20Infomation%20Table%E7%BB%93%E6%9E%84.md)
+5. [Node Address Table区域(NAT)(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Node%20Address%20Table%E7%BB%93%E6%9E%84.md)
+6. [Segment Summary Area区域(SSA)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-Layout/Segment%20Summary%20Area%E7%BB%93%E6%9E%84.md)
 
 ### 二、文件数据的存储以及读写
 1. [F2FS文件数据组织方式](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/file_data_structure.md)
@@ -40,3 +40,4 @@
 6. [CURSEG的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/curseg.md)
 7. [物理地址寻址的实现](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/get_dnode.md) 
 8. [node_footer的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/node_footer.md) 
+9. get_node_page的作用

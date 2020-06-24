@@ -1,13 +1,13 @@
-# Superblock结构
+# Superblock区域
 Superblock保存了F2FS的核心元数据的结构，包括磁盘大小，元区域的各个部分的起始地址等。
 
 ## Superblock在元数据区域的物理结构
 
-![sb_layout](../img/F2FS-Layout/sb_layout.png)
+![sb_layout](../img/F2FS-Layout/sb_layout2.png)
 
 Superblock区域是由两个`struct f2fs_super_block`结构组成，互为备份。
 ## Superblock物理存放区域结构
-`f2fs_super_block`是F2FS对Superblock的具体数据结构实现，它保存在磁盘的最开始的位置，F2FS进行启动的时候从磁盘的前端直接读取出来。
+`struct f2fs_super_block`是F2FS对Superblock的具体数据结构实现，它保存在磁盘的最开始的位置，F2FS进行挂载时从磁盘的前端直接读取出来，然后转换为`struct f2fs_super_block`结构。它的定义如下:
 
 ```c
 
@@ -16,9 +16,9 @@ struct f2fs_super_block {
 	__le16 major_ver;		/* Major Version */
 	__le16 minor_ver;		/* Minor Version */
 	__le32 log_sectorsize;		/* log2 sector size in bytes */
-	__le32 log_sectors_per_block;	/* log2 # of sectors per block 一般是3，因为 1 << 3 = 8 */
-	__le32 log_blocksize;		/* log2 block size in bytes 一般是12，因为 1 << 12 = 4096 */
-	__le32 log_blocks_per_seg;	/* log2 # of blocks per segment 一般是8，因为 1 << 8 = 512 */
+	__le32 log_sectors_per_block; /* log2 # of sectors per block 一般是3，因为1<<3 = 8 */
+	__le32 log_blocksize;		/* log2 block size in bytes 一般是12，因为 1<<12 = 4096 */
+	__le32 log_blocks_per_seg;	/* log2 # of blocks per segment 一般是8，因为 1<<8 = 512 */
 	__le32 segs_per_sec;		/* # of segments per section */
 	__le32 secs_per_zone;		/* # of sections per zone */
 	__le32 checksum_offset;		/* checksum offset inside super block */
@@ -127,7 +127,8 @@ struct f2fs_sb_info {
 ```c
 static void init_sb_info(struct f2fs_sb_info *sbi)
 {
-	struct f2fs_super_block *raw_super = sbi->raw_super; // raw_supaer就是F2FS在磁盘中的结构，F2FS需要根据这个raw_super的信息，创建对应的内存结构struct f2fs_sb_info
+    // raw_supaer就是F2FS在从磁盘读取出来的信息，再初始化对应的内存结构struct f2fs_sb_info
+	struct f2fs_super_block *raw_super = sbi->raw_super; 
 	int i, j;
 
 	sbi->log_sectors_per_block =
