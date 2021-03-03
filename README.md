@@ -40,4 +40,4 @@
 6. [CURSEG的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/curseg.md)
 7. [物理地址寻址的实现](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/get_dnode.md) 
 8. [node_footer的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/node_footer.md) 
-9. get_node_page的作用
+9. [f2fs_rename的作用](https://github.com/RiweiPan/F2FS-NOTES/blob/master/ImportantDataStructure/f2fs_rename.md)
