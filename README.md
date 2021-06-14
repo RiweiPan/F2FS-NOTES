@@ -17,10 +17,8 @@
 3. [一般文件写流程](https://github.com/RiweiPan/F2FS-NOTES/blob/master/Reading-and-Writing/%E5%86%99%E6%B5%81%E7%A8%8B.md)
 
 ### 三、文件与目录的创建以及删除
-1. [一般文件的创建(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E6%96%87%E4%BB%B6%E5%88%9B%E5%BB%BA.md)
-2. [一般目录的创建(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%9B%E5%BB%BA.md)
-3. [一般文件的删除(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%9B%E5%BB%BA.md)
-4. [一般目录的删除(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%A0%E9%99%A4.md)
+1. [一般文件的创建](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E6%96%87%E4%BB%B6%E5%88%9B%E5%BB%BA.md)
+2. [一般文件的删除(未完成)](https://github.com/RiweiPan/F2FS-NOTES/blob/master/File-Creation-and-Deletion/%E7%9B%AE%E5%BD%95%E5%88%9B%E5%BB%BA.md)
 
 ### 四、垃圾回收流程
 1. [垃圾回收流程分析](https://github.com/RiweiPan/F2FS-NOTES/blob/master/F2FS-GC/GC%E6%B5%81%E7%A8%8B%E4%BB%8B%E7%BB%8D.md)
